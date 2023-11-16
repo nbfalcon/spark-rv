@@ -1,17 +1,18 @@
 // See README.md for license details.
 
-ThisBuild / scalaVersion     := "2.13.8"
+ThisBuild / scalaVersion     := "2.13.10"
 ThisBuild / version          := "0.1.0"
-ThisBuild / organization     := "%ORGANIZATION%"
+ThisBuild / organization     := "nbfalcon"
 
-val chiselVersion = "5.0.0"
+val chiselVersion = "6.0.0-M3"
+val chiseltestVersion = "6.0-SNAPSHOT"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "%NAME%",
+    name := "sparkRV",
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel" % chiselVersion,
-      "edu.berkeley.cs" %% "chiseltest" % "5.0.0" % "test"
+      "edu.berkeley.cs" %% "chiseltest" % chiseltestVersion % "test"
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
