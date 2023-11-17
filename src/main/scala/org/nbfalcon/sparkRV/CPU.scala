@@ -64,13 +64,19 @@ class SimpleCPU extends Module {
   pc.io.indirectJumpValue := value1
   pc.io.jImm20 := Mux(decoder.ctl.jumpMode === J_JAL, decoder.ctl.jalImm20, decoder.ctl.bImm12)
 
+  import Opcode._
   when(andLink) {
     registerFile.io.valueD := pc.io.currentPC + 4.U
+  }.elsewhen(decoder.ctl.opcode === OP_LUIPC) {
+    registerFile.io.valueD := decoder.ctl.uImm20 << 12
+  }.elsewhen(decoder.ctl.opcode === OP_AUIPC) {
+    registerFile.io.valueD := pc.io.currentPC + (decoder.ctl.uImm20 << 12)
   }.otherwise {
     registerFile.io.valueD := alu.io.result
   }
   registerFile.io.storeRd := decoder.ctl.aluStoreRd || decoder.ctl.memLoad ||
-    (decoder.ctl.jumpMode === J_JALR || decoder.ctl.jumpMode === J_JALR)
+    (decoder.ctl.jumpMode === J_JALR || decoder.ctl.jumpMode === J_JALR) ||
+    (decoder.ctl.opcode === OP_LUIPC || decoder.ctl.opcode === OP_AUIPC)
 
   io.dataMemAddr := value1
   io.dataMemLoad := decoder.ctl.memLoad

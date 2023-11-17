@@ -53,6 +53,7 @@ object JumpMode extends ChiselEnum {
 }
 
 class RVControl extends Bundle() {
+  val opcode = Output(Opcode())
   val rs1 = Output(RegId)
   val rs2 = Output(RegId)
   val rd = Output(RegId)
@@ -76,6 +77,8 @@ class RVControl extends Bundle() {
   val cJumpType = Output(CJumpType())
   // Conditional Branch immediate; note that is 13-bits wide, due to extension/bitshifting
   val bImm12 = Output(SInt(13.W))
+
+  val uImm20 = Output(UInt(20.W))
 }
 
 class Decoder extends Module {
@@ -119,8 +122,13 @@ class Decoder extends Module {
   bType.done()
   val bImm12 = Cat(bImm12_12, bImm12_11, bImm12_10_5, bImm12_4_1, 0.U(1.W))
 
+  val uType = BitDecBE(instructionRegister)
+  val uImm20 = uType.next(20)
+
   val jType = BitDecBE(instructionRegister)
   val jImm20 = jType.next(20)
+
+  ctl.opcode := opcode
 
   ctl.rs2 := rs2
   ctl.rs1 := rs1
@@ -133,6 +141,8 @@ class Decoder extends Module {
   ctl.storeOffsetImm := sImm12.asSInt
   ctl.memIOMode := MemIOMode(funct3Raw(1, 0))
   ctl.memUnsigned := funct3Raw(2)
+
+  ctl.uImm20 := uImm20
 
   ctl.bImm12 := bImm12.asSInt
   ctl.jalImm20 := jImm20.asSInt

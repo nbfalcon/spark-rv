@@ -103,17 +103,21 @@ addi x1, x1, 1
 blt x1, x2, loop
 """)).withAnnotations(Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)) { dut =>
       dut.clock.setTimeout(0)
+      // FIXME: refactor all this
       dut.clock.step(1024)
       assert(dut.regfile(3).peekInt() == 400)
     }
   }
 
-  def dumpCPU(dut: SimpleCPUTest): Unit = {
-    println("------ State snapshot")
-    //    println(s"pc at: ${cpu.pc.io.currentPC.peek()}")
-    for ((reg, i) <- dut.regfile.zipWithIndex) {
-      println(s"x$i: ${reg.peek()}")
+  "LUIPC" in {
+    test(Util.testCPU(
+      """
+li x1, 0xFFFFFFFF
+addi x2, x1, 10
+""")) { dut =>
+      dut.clock.setTimeout(0)
+      dut.clock.step(1024)
+      assert(dut.regfile(1).peekInt() == BigInt("FFFFFFFF", 16) && dut.regfile(2).peekInt() == 9)
     }
-    println()
   }
 }
