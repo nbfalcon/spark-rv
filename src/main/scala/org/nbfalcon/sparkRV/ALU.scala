@@ -1,7 +1,7 @@
 package org.nbfalcon.sparkRV
 
-import chisel3.util.{is, switch}
-import chisel3.{Bool, Bundle, DontCare, Input, Module, Mux, Output}
+import chisel3._
+import chisel3.util._
 import org.nbfalcon.sparkRV.Base.Word
 
 class ALU extends Module {
@@ -14,7 +14,6 @@ class ALU extends Module {
   })
 
   import RFunct3._
-
   // io_result is not fully initialized (actually it is, because our switch is exhaustive)
   io.result := DontCare
   switch(io.aluOP) {
@@ -47,6 +46,42 @@ class ALU extends Module {
     }
     is(R_AND) {
       io.result := io.value1 & io.value2
+    }
+  }
+}
+
+class JumpALU extends Module {
+  val io = IO(new Bundle {
+    val value1 = Input(Word)
+    val value2 = Input(Word)
+
+    val jumpType = Input(CJumpType())
+
+    val shouldJump = Output(Bool())
+  })
+
+  // FIXME: illegal??
+  io.shouldJump := DontCare
+  import CJumpType._
+  // FIXME: handle illegal insns-
+  switch(io.jumpType) {
+    is(C_BEQ) {
+      io.shouldJump := io.value1 === io.value2
+    }
+    is(C_BNE) {
+      io.shouldJump := io.value1 === io.value2
+    }
+    is(C_BLT) {
+      io.shouldJump := io.value1.asSInt < io.value2.asSInt
+    }
+    is(C_BGE) {
+      io.shouldJump := io.value2.asSInt > io.value1.asSInt
+    }
+    is(C_BLTU) {
+      io.shouldJump := io.value1 < io.value2
+    }
+    is(C_BGEU) {
+      io.shouldJump := io.value2 > io.value1
     }
   }
 }

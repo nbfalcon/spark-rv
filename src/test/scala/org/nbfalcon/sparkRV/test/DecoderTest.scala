@@ -7,6 +7,7 @@ import chiseltest.experimental.expose
 import firrtl.annotations.MemoryLoadFileType
 import org.nbfalcon.sparkRV.Base.Word
 import org.nbfalcon.sparkRV.Decoder
+import org.nbfalcon.sparkRV.test.util.PeekPoke._
 import org.scalatest.freespec.AnyFreeSpec
 
 class DecoderTestDut(codeFile: String) extends Module {
@@ -20,6 +21,7 @@ class DecoderTestDut(codeFile: String) extends Module {
   dut.instructionRegister := codeMem(addr)
 
   val dec = expose(dut.ctl)
+  val sImm12 = expose(dec.imm12.asSInt)
 }
 
 class DecTest(val xs: (DecoderTestDut => Unit)*) {}
@@ -48,6 +50,18 @@ add x1, x1, x1
         (dut => assert(dut.dec.imm12.peekInt() == 2000)),
         (dut => assert(dut.dec.rs1.peekInt() == 31 && dut.dec.rs2.peekInt() == 31 && dut.dec.rd.peekInt() == 31 && dut.dec.aluStoreRd.peekInt() == 1)),
         (dut => assert(dut.dec.rs1.peekInt() == 1 && dut.dec.rs2.peekInt() == 1 && dut.dec.rd.peekInt() == 1 && dut.dec.aluStoreRd.peekInt() == 1)),
+      ))
+  }
+
+  "Branches" in {
+    example(
+      """
+loop:
+addi zero, zero, -0x3FF
+blt x31, x10, loop
+""", new DecTest(
+        (dut => assert(dut.sImm12.peekInt() == -0x3FF)),
+        (dut => assert(dut.dec.rs1.peekInt() === 31 && dut.dec.rs2.peekInt() === 10 && dut.dec.bImm12.peekInt() === -4))
       ))
   }
 }

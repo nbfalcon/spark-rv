@@ -25,3 +25,6 @@ class BitDecBE(size: Int, val inputWord: UInt) {
 object BitDecBE {
   def apply(inputWord: UInt) = new BitDecBE(inputWord.getWidth, inputWord)
 }
+
+// Prototype a new API
+// val i = new BitDecBE() { val imm12 = next(...) } -> iImm12 becomes i.imm2

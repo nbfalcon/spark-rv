@@ -1,7 +1,7 @@
 package org.nbfalcon.sparkRV.test
 
-import chisel3.util.experimental.loadMemoryFromFileInline
 import chisel3._
+import chisel3.util.experimental.loadMemoryFromFileInline
 import chiseltest._
 import chiseltest.experimental.expose
 import firrtl.annotations.MemoryLoadFileType
@@ -13,10 +13,10 @@ import java.nio.file.Files
 class SimpleCPUTest(codeFile: String) extends Module {
   val dut = Module(new SimpleCPU())
 
-  val codeMem = SyncReadMem(16384, UInt(32.W))
+  val codeMem = Mem(16384, UInt(32.W))
   loadMemoryFromFileInline(codeMem, codeFile, MemoryLoadFileType.Hex)
 
-  dut.io.codeMemWord := codeMem((dut.io.codeMemAddr >> 2).asUInt)
+  dut.io.codeMemWord := codeMem.read((dut.io.codeMemAddr >> 2).asUInt)
   dut.io.dataMemWord := 0.U
 
   val regfile = expose(dut.registerFile.regFile)
@@ -91,9 +91,26 @@ add x1, x1, x1
     }
   }
 
+  "We have loops :)" in {
+    test(Util.testCPU(
+      """
+addi x1, zero, 0
+addi x2, zero, 100
+addi x3, zero, 0
+loop:
+addi x3, x3, 4
+addi x1, x1, 1
+blt x1, x2, loop
+""")).withAnnotations(Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)) { dut =>
+      dut.clock.setTimeout(0)
+      dut.clock.step(1024)
+      assert(dut.regfile(3).peekInt() == 400)
+    }
+  }
+
   def dumpCPU(dut: SimpleCPUTest): Unit = {
     println("------ State snapshot")
-//    println(s"pc at: ${cpu.pc.io.currentPC.peek()}")
+    //    println(s"pc at: ${cpu.pc.io.currentPC.peek()}")
     for ((reg, i) <- dut.regfile.zipWithIndex) {
       println(s"x$i: ${reg.peek()}")
     }

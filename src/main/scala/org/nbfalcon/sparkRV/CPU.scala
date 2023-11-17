@@ -1,8 +1,8 @@
 package org.nbfalcon.sparkRV
 
 import chisel3._
+import chisel3.util._
 import org.nbfalcon.sparkRV.Base._
-
 
 class SimpleCPUIO extends Bundle {
   val codeMemAddr = Output(Word)
@@ -29,17 +29,48 @@ class SimpleCPU extends Module {
   registerFile.io.rs1 := decoder.ctl.rs1
   registerFile.io.rs2 := decoder.ctl.rs2
   registerFile.io.rd := decoder.ctl.rd
-  registerFile.io.storeRd := decoder.ctl.aluStoreRd || decoder.ctl.memLoad
 
   val value1: UInt = registerFile.io.value1
   val value2: UInt = registerFile.io.value2
 
   val alu = Module(new ALU())
   alu.io.value1 := value1
-  alu.io.value2 := Mux(decoder.ctl.aluUseImmediate, decoder.ctl.imm12, value2)
+  // FIXME: the second value should not be converted to SInt!! We need a "widen to this width" operator
+  alu.io.value2 := Mux(decoder.ctl.aluUseImmediate, decoder.ctl.imm12.asSInt, value2.asSInt).asUInt
   alu.io.aluOP := decoder.ctl.aluOP
   alu.io.aluNegate := decoder.ctl.aluNegate
-  registerFile.io.valueD := alu.io.result
+
+  val jumpALU = Module(new JumpALU())
+  jumpALU.io.value1 := value1
+  jumpALU.io.value2 := value2
+  jumpALU.io.jumpType := decoder.ctl.cJumpType
+
+  val shouldJump = Wire(Bool())
+  val andLink = Wire(Bool())
+  shouldJump := false.B
+  andLink := false.B
+  import JumpMode._
+  switch(decoder.ctl.jumpMode) {
+    is(J_JALR, J_JAL) {
+      shouldJump := true.B
+      andLink := true.B
+    }
+    is(J_BRANCH) {
+      shouldJump := jumpALU.io.shouldJump
+    }
+  }
+  pc.io.shouldJump := shouldJump
+  pc.io.jumpMode := decoder.ctl.jumpMode
+  pc.io.indirectJumpValue := value1
+  pc.io.jImm20 := Mux(decoder.ctl.jumpMode === J_JAL, decoder.ctl.jalImm20, decoder.ctl.bImm12)
+
+  when(andLink) {
+    registerFile.io.valueD := pc.io.currentPC + 4.U
+  }.otherwise {
+    registerFile.io.valueD := alu.io.result
+  }
+  registerFile.io.storeRd := decoder.ctl.aluStoreRd || decoder.ctl.memLoad ||
+    (decoder.ctl.jumpMode === J_JALR || decoder.ctl.jumpMode === J_JALR)
 
   io.dataMemAddr := value1
   io.dataMemLoad := decoder.ctl.memLoad
