@@ -16,7 +16,7 @@ class SimpleCPUTest(codeFile: String) extends Module {
   val codeMem = SyncReadMem(16384, UInt(32.W))
   loadMemoryFromFileInline(codeMem, codeFile, MemoryLoadFileType.Hex)
 
-  dut.io.codeMemWord := codeMem(dut.io.codeMemAddr)
+  dut.io.codeMemWord := codeMem((dut.io.codeMemAddr >> 2).asUInt)
   dut.io.dataMemWord := 0.U
 
   val regfile = expose(dut.registerFile.regFile)
@@ -33,6 +33,8 @@ object Util {
     Files.writeString(asmFile, source)
     val runAsm = Runtime.getRuntime.exec(Array[String](
       "riscv64-linux-gnu-as",
+      "-march",
+      "rv32i",
       asmFile.toAbsolutePath.toString,
       "-o",
       objFile.toAbsolutePath.toString))
@@ -52,7 +54,7 @@ object Util {
     val verilogHex = new StringBuilder()
     val LETTERS = "0123456789ABCDEF"
     for (wordPtr <- 0 until obj.length by 4) {
-      for (byteI <- 0 until 4) {
+      for (byteI <- 3 until -1 by -1) {
         val byte = obj(wordPtr + byteI)
         val lo = byte & 0xF
         val hi = (byte >> 4) & 0xF
@@ -60,6 +62,8 @@ object Util {
       }
       verilogHex.append("\r\n")
     }
+    // Append 00.., since treadle pads the memory with last value (so that we get 0-padded memory)
+    verilogHex.append("00000000\r\n")
 
     Files.delete(asmFile)
     Files.delete(objFile)
@@ -76,19 +80,14 @@ class BasicExamples extends AnyFreeSpec with ChiselScalatestTester {
   "Should work for simple arithmetic" in {
     test(Util.testCPU(
       """
-.option norvc
-mv t0, zero
-addi t0, t0, 100
-addi t0, t0, -50
-add t1, t0, t0
-add t0, t0, t0
-
-mv x1, t0
-mv x2, t1
-""")) { dut =>
+addi x1, zero, 100
+addi x2, x1, 20
+add x3, x1, x2
+add x1, x1, x1
+""")).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       dut.clock.setTimeout(0)
-      dut.clock.step(1024)
-      dumpCPU(dut)
+      dut.clock.step(100)
+      assert(dut.regfile(1).peekInt() == 200)
     }
   }
 

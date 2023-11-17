@@ -69,14 +69,12 @@ class RVControl extends Bundle() {
   val memLoad = Output(Bool())
 }
 
-class DecoderIO extends RVControl {
-  val instructionRegister = Input(Word)
-}
 
 class Decoder extends Module {
-  val io = IO(new DecoderIO)
+  val ctl = IO(new RVControl)
+  val instructionRegister = IO(Input(Word))
 
-  val rType = BitDecBE(io.instructionRegister)
+  val rType = BitDecBE(instructionRegister)
   val funct7 = rType.next(7)
   val rs2 = rType.next(RegId.getWidth)
   val rs1 = rType.next(RegId.getWidth)
@@ -88,12 +86,12 @@ class Decoder extends Module {
   }
   rType.done()
 
-  val iType = BitDecBE(io.instructionRegister)
+  val iType = BitDecBE(instructionRegister)
   val imm12 = iType.next(12)
   // FIXME: we can check that all encodings "match up" using a custom ad-hoc type and by registering all results
   // e.g. rs1 := iType.aliases(RegId.getWidth)
 
-  val sType = BitDecBE(io.instructionRegister)
+  val sType = BitDecBE(instructionRegister)
   val sImmHi7 = sType.next(7)
   sType.skip(RegId.getWidth)
   sType.skip(RegId.getWidth)
@@ -101,47 +99,45 @@ class Decoder extends Module {
   val sImmLo5 = sType.next(5)
   val sImm12 = Cat(sImmHi7, sImmLo5)
 
-  val uType = BitDecBE(io.instructionRegister)
+  val uType = BitDecBE(instructionRegister)
   val uImm20 = uType.next(20)
 
   val aluUseImmediate = Wire(Bool())
   aluUseImmediate := false.B
 
-  io.rs2 := rs2
-  io.rs1 := rs1
-  io.rd := rd
+  ctl.rs2 := rs2
+  ctl.rs1 := rs1
+  ctl.rd := rd
 
-  io.imm12 := imm12
-  io.aluOP := DontCare
+  ctl.imm12 := imm12
+  ctl.aluOP := funct3
 
-  io.loadOffsetImm := imm12
-  io.storeOffsetImm := sImm12
-  io.memIOMode := MemIOMode(funct3Raw(1, 0))
-  io.memUnsigned := funct3Raw(2)
-  io.memStore := false.B
-  io.memLoad := false.B
+  ctl.loadOffsetImm := imm12
+  ctl.storeOffsetImm := sImm12
+  ctl.memIOMode := MemIOMode(funct3Raw(1, 0))
+  ctl.memUnsigned := funct3Raw(2)
+  ctl.memStore := false.B
+  ctl.memLoad := false.B
 
   import Opcode._
 
   switch(opcode) {
     is(OP_ARITH) {
-      io.aluOP := funct3
     }
     is(OP_IMM) {
-      io.aluOP := funct3
       aluUseImmediate := true.B
     }
     is(OP_LOAD) {
-      io.memLoad := true.B
-      io.memStore := false.B
+      ctl.memLoad := true.B
+      ctl.memStore := false.B
     }
     is(OP_STORE) {
-      io.memLoad := false.B
-      io.memStore := true.B
+      ctl.memLoad := false.B
+      ctl.memStore := true.B
     }
   }
 
-  io.aluStoreRd := opcode === OP_IMM || opcode === OP_ARITH
-  io.aluUseImmediate := aluUseImmediate
-  io.aluNegate := !aluUseImmediate && funct7(1) // Negates some instructions (all "dual" ambiguous in RFunct3)
+  ctl.aluStoreRd := opcode === OP_IMM || opcode === OP_ARITH
+  ctl.aluUseImmediate := opcode === OP_IMM
+  ctl.aluNegate := !aluUseImmediate && funct7(1) // Negates some instructions (all "dual" ambiguous in RFunct3)
 }
