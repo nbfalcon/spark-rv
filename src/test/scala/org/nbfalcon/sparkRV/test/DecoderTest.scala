@@ -7,7 +7,6 @@ import chiseltest.experimental.expose
 import firrtl.annotations.MemoryLoadFileType
 import org.nbfalcon.sparkRV.Base.Word
 import org.nbfalcon.sparkRV.Decoder
-import org.nbfalcon.sparkRV.test.util.PeekPoke._
 import org.scalatest.freespec.AnyFreeSpec
 
 class DecoderTestDut(codeFile: String) extends Module {

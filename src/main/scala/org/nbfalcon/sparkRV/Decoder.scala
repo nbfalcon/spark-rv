@@ -19,10 +19,12 @@ object Opcode extends ChiselEnum {
   val OP_ECALL = Value("b1110011".U)
 }
 
-object MemIOMode extends ChiselEnum {
-  val M_BYTE = Value(0.U)
-  val M_HALF = Value(1.U)
-  val M_WORD = Value(2.U)
+object MemIOWidth extends ChiselEnum {
+  val M_BYTE = Value(0x0.U)
+  val M_HALF = Value(0x1.U)
+  val M_WORD = Value(0x2.U)
+  val M_BYTE_UNSIGNED = Value(0x4.U)
+  val M_HALF_UNSIGNED = Value(0x5.U)
 }
 
 object RFunct3 extends ChiselEnum {
@@ -66,7 +68,7 @@ class RVControl extends Bundle() {
 
   val loadOffsetImm = Output(SInt(12.W))
   val storeOffsetImm = Output(SInt(12.W))
-  val memIOMode = Output(MemIOMode())
+  val memIOMode = Output(MemIOWidth())
   val memUnsigned = Output(Bool())
   val memStore = Output(Bool())
   val memLoad = Output(Bool())
@@ -139,7 +141,7 @@ class Decoder extends Module {
 
   ctl.loadOffsetImm := imm12.asSInt
   ctl.storeOffsetImm := sImm12.asSInt
-  ctl.memIOMode := MemIOMode(funct3Raw(1, 0))
+  ctl.memIOMode := MemIOWidth(funct3Raw)
   ctl.memUnsigned := funct3Raw(2)
 
   ctl.uImm20 := uImm20
@@ -151,8 +153,6 @@ class Decoder extends Module {
   // defaults
   ctl.aluStoreRd := false.B
   ctl.aluUseImmediate := false.B
-  ctl.memStore := false.B
-  ctl.memLoad := false.B
   ctl.isAJumpOpcode := false.B
   ctl.aluNegate := false.B
 
@@ -169,13 +169,11 @@ class Decoder extends Module {
     }
     is(OP_LOAD) {
       ctl.aluStoreRd := true.B
-      ctl.memLoad := true.B
-      ctl.memStore := false.B
     }
     is(OP_STORE) {
-      ctl.memLoad := false.B
-      ctl.memStore := true.B
     }
   }
+  ctl.memLoad := opcode === OP_LOAD
+  ctl.memStore := opcode === OP_STORE
   (ctl.jumpMode, ctl.isAJumpOpcode) := JumpMode.safe(opcode.asUInt)
 }

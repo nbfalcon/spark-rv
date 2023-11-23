@@ -4,26 +4,26 @@ import chisel3._
 import chisel3.util._
 import org.nbfalcon.sparkRV.Base._
 
-class SimpleCPUIO extends Bundle {
+class SimpleCPUMemInterface extends Bundle {
   val codeMemAddr = Output(Word)
   val codeMemWord = Input(Word)
 
   val dataMemLoad = Output(Bool())
   val dataMemStore = Output(Bool())
+  val dataMemIOMode = Output(MemIOWidth())
   val dataMemAddr = Output(Word)
   val dataMemWord = Input(Word)
-  val dataMemIOMode = Output(MemIOMode())
+  val dataMemWordWrite = Output(Word)
 }
 
 class SimpleCPU extends Module {
-  val io = IO(new SimpleCPUIO)
+  val mem = IO(new SimpleCPUMemInterface)
 
   val pc = Module(new ProgramCounter())
-
-  io.codeMemAddr := pc.io.currentPC
+  mem.codeMemAddr := pc.io.currentPC
 
   val decoder = Module(new Decoder())
-  decoder.instructionRegister := io.codeMemWord
+  decoder.instructionRegister := mem.codeMemWord
 
   val registerFile = Module(new RegisterFile())
   registerFile.io.rs1 := decoder.ctl.rs1
@@ -67,6 +67,8 @@ class SimpleCPU extends Module {
   import Opcode._
   when(andLink) {
     registerFile.io.valueD := pc.io.currentPC + 4.U
+  }.elsewhen(decoder.ctl.memLoad) {
+    registerFile.io.valueD := mem.dataMemWord
   }.elsewhen(decoder.ctl.opcode === OP_LUIPC) {
     registerFile.io.valueD := decoder.ctl.uImm20 << 12
   }.elsewhen(decoder.ctl.opcode === OP_AUIPC) {
@@ -76,10 +78,12 @@ class SimpleCPU extends Module {
   }
   registerFile.io.storeRd := decoder.ctl.aluStoreRd || decoder.ctl.memLoad ||
     (decoder.ctl.jumpMode === J_JALR || decoder.ctl.jumpMode === J_JALR) ||
-    (decoder.ctl.opcode === OP_LUIPC || decoder.ctl.opcode === OP_AUIPC)
+    (decoder.ctl.opcode === OP_LUIPC || decoder.ctl.opcode === OP_AUIPC) ||
+    decoder.ctl.memLoad
 
-  io.dataMemAddr := value1
-  io.dataMemLoad := decoder.ctl.memLoad
-  io.dataMemStore := decoder.ctl.memStore
-  io.dataMemIOMode := decoder.ctl.memIOMode
+  mem.dataMemAddr := value1
+  mem.dataMemLoad := decoder.ctl.memLoad
+  mem.dataMemStore := decoder.ctl.memStore
+  mem.dataMemIOMode := decoder.ctl.memIOMode
+  mem.dataMemWordWrite := value2
 }

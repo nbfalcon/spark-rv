@@ -1,11 +1,9 @@
 package org.nbfalcon.sparkRV.test
 
 import chisel3._
-import chisel3.util.experimental.loadMemoryFromFileInline
 import chiseltest._
 import chiseltest.experimental.expose
-import firrtl.annotations.MemoryLoadFileType
-import org.nbfalcon.sparkRV.SimpleCPU
+import org.nbfalcon.sparkRV.{SimpleCPU, Unrealistic3PortRWXMem}
 import org.scalatest.freespec.AnyFreeSpec
 
 import java.nio.file.Files
@@ -13,11 +11,8 @@ import java.nio.file.Files
 class SimpleCPUTest(codeFile: String) extends Module {
   val dut = Module(new SimpleCPU())
 
-  val codeMem = Mem(16384, UInt(32.W))
-  loadMemoryFromFileInline(codeMem, codeFile, MemoryLoadFileType.Hex)
-
-  dut.io.codeMemWord := codeMem.read((dut.io.codeMemAddr >> 2).asUInt)
-  dut.io.dataMemWord := 0.U
+  val mem = Module(new Unrealistic3PortRWXMem(codeFile))
+  mem.memIO <> dut.mem
 
   val regfile = expose(dut.registerFile.regFile)
 }
@@ -70,6 +65,7 @@ object Util {
     Files.delete(flatObj)
 
     Files.writeString(hexFile, verilogHex)
+    // FIXME: file leak
     hexFile.toString
   }
 
@@ -118,6 +114,96 @@ addi x2, x1, 10
       dut.clock.setTimeout(0)
       dut.clock.step(1024)
       assert(dut.regfile(1).peekInt() == BigInt("FFFFFFFF", 16) && dut.regfile(2).peekInt() == 9)
+    }
+  }
+
+  "Load store" in {
+    test(Util.testCPU(
+      """
+li t0, 10000
+sw t0, (t0)
+lw x1, (t0)
+
+li t1, 10010
+lw
+""")) { dut =>
+      dut.clock.setTimeout(0)
+      dut.clock.step(1024)
+      assert(dut.regfile(1).peekInt() == 100)
+    }
+  }
+
+  "Word IO" in {
+    test(Util.testCPU(
+      """
+# a0: target
+# a1: nwords
+# t0: i
+li a0, 10000
+li a1, 100
+
+li t0, 0
+loop:
+slli t1, t0, 2
+add t2, a0, t1
+sw t0, (t2)
+addi t0, t0, 1
+blt t0, a1, loop
+
+# s0: result
+li s0, 0
+
+li t0, 0
+loopRead:
+slli t1, t0, 2
+add t2, a0, t1
+lw t3, (t2)
+add s0, s0, t3
+addi t0, t0, 1
+blt t0, a1, loopRead
+
+mv x1, s0
+""")).withAnnotations(Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)) { dut =>
+      dut.clock.setTimeout(0)
+      dut.clock.step(10024)
+      assert(dut.regfile(1).peekInt() == 4950)
+    }
+  }
+
+  "Halfword IO" in {
+    test(Util.testCPU(
+      """
+# a0: target
+# a1: nwords
+# t0: i
+li a0, 10000
+li a1, 100
+
+li t0, 0
+loop:
+slli t1, t0, 1
+add t2, a0, t1
+sh t0, (t2)
+addi t0, t0, 1
+blt t0, a1, loop
+
+# s0: result
+li s0, 0
+
+li t0, 0
+loopRead:
+slli t1, t0, 1
+add t2, a0, t1
+lhu t3, (t2)
+add s0, s0, t3
+addi t0, t0, 1
+blt t0, a1, loopRead
+
+mv x1, s0
+""")).withAnnotations(Seq(VerilatorBackendAnnotation, WriteVcdAnnotation)) { dut =>
+      dut.clock.setTimeout(0)
+      dut.clock.step(10024)
+      assert(dut.regfile(1).peekInt() == 4950)
     }
   }
 }
